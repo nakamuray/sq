@@ -1,0 +1,18 @@
+{
+  "name": "sq",
+  "version": "0.0.1",
+  "description": "Stream jQuery",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+      "sq": "./sq.js"
+  },
+  "author": "NAKAMURA Yoshitaka",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+      "jquery": "^2.1.4",
+      "jsdom": "^7.2.2",
+      "coffee-script": "^1.10.0"
+  }
+}
