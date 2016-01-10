@@ -10,7 +10,7 @@ $ npm install
 
 ## Usage
 ```
-sq  <coffee expression> [URL or filename]
+sq  <coffee expression> [URL or filename...]
 ```
 
 ## Example
@@ -29,4 +29,30 @@ https://jquery.org/resources/members/ibm.png
 https://jquery.com/jquery-wp-content/themes/jquery/content/books/learning-jquery-4th-ed.jpg
 https://jquery.com/jquery-wp-content/themes/jquery/content/books/jquery-in-action.jpg
 https://jquery.com/jquery-wp-content/themes/jquery/content/books/jquery-succinctly.jpg
+```
+
+```console
+$ sq '$(".entry-title a").map -> $(this).text()' https://api.jquery.com/category/core/ https://api.jquery.com/category/css/
+jQuery()
+jQuery.holdReady()
+jQuery.noConflict()
+jQuery.sub()
+jQuery.when()
+.addClass()
+.css()
+.hasClass()
+.height()
+.innerHeight()
+.innerWidth()
+jQuery.cssHooks
+jQuery.cssNumber
+.offset()
+.outerHeight()
+.outerWidth()
+.position()
+.removeClass()
+.scrollLeft()
+.scrollTop()
+.toggleClass()
+.width()
 ```
