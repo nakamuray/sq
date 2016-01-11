@@ -74,7 +74,7 @@
     }
 
     var parserArgs = require('minimist');
-    var opts = parserArgs(process.argv.slice(2), {
+    var parserOpts = {
         string: ['cookie', 'referrer', 'user-agent'],
         boolean: ['help', 'quiet'],
         alias: {
@@ -84,6 +84,20 @@
             n: 'quiet',
             A: 'userAgent',
             'user-agent': 'userAgent'
+        }
+    };
+    var opts = parserArgs(process.argv.slice(2), parserOpts);
+
+    Object.keys(opts).forEach((key) => {
+        if (key == '_') {
+            return;
+        }
+        if (parserOpts.string.indexOf(key) == -1 &&
+                parserOpts.boolean.indexOf(key) == -1 &&
+                !parserOpts.alias[key]) {
+            console.error('unknown option: ' + key);
+            console.error(usage);
+            process.exit(1);
         }
     });
 
