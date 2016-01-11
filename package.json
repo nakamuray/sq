@@ -10,6 +10,10 @@
   },
   "author": "NAKAMURA Yoshitaka",
   "license": "BSD-2-Clause",
+  "repository": {
+      "type": "git",
+      "url": "https://github.com/nakamuray/sq.git"
+  },
   "dependencies": {
       "jquery": "^2.1.4",
       "jsdom": "^7.2.2",
