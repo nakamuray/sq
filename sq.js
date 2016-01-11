@@ -20,6 +20,63 @@
             -u, --url=URL           set/override document URL
             -A, --user-agent=AGENT  set User-Agent to AGENT`
 
+    function parseOptions(args) {
+        var parserArgs = require('minimist');
+        var parserOpts = {
+            string: ['cookie', 'encoding', 'referrer', 'url', 'userAgent'],
+            boolean: ['help', 'quiet'],
+            alias: {
+                b: 'cookie',
+                e: 'encoding',
+                h: 'help',
+                n: 'quiet',
+                r: 'referrer',
+                u: 'url',
+                A: 'userAgent',
+                'user-agent': 'userAgent'
+            }
+        };
+        var opts = parserArgs(args, parserOpts);
+
+        Object.keys(opts).forEach((key) => {
+            if (key == '_') {
+                return;
+            }
+            if (parserOpts.string.indexOf(key) == -1 &&
+                    parserOpts.boolean.indexOf(key) == -1 &&
+                    !parserOpts.alias[key]) {
+                console.error('unknown option: ' + key);
+                console.error(usage);
+                process.exit(1);
+            }
+        });
+
+        if (opts.help) {
+            console.log(usage);
+            process.exit(0);
+        } else if (!opts._.length) {
+            console.error(usage);
+            process.exit(1);
+        }
+
+        opts.script = opts._[0];
+        opts.args = opts._.slice(1);
+
+        opts.headers = {
+            'Cookie': opts.cookie,
+            'Referer': opts.referrer,
+            'User-Agent': opts.userAgent
+        }
+        Object.keys(opts.headers).forEach((key) => {
+            if (opts.headers[key] === undefined) {
+                delete(opts.headers[key]);
+            }
+        });
+
+
+        return opts;
+    }
+
     function download(url, headers) {
         var request = require('request');
 
@@ -119,64 +176,14 @@
         return Promise.resolve();
     }
 
-    var parserArgs = require('minimist');
-    var parserOpts = {
-        string: ['cookie', 'encoding', 'referrer', 'url', 'userAgent'],
-        boolean: ['help', 'quiet'],
-        alias: {
-            b: 'cookie',
-            e: 'encoding',
-            h: 'help',
-            n: 'quiet',
-            r: 'referrer',
-            u: 'url',
-            A: 'userAgent',
-            'user-agent': 'userAgent'
-        }
-    };
-    var opts = parserArgs(process.argv.slice(2), parserOpts);
+    var opts = parseOptions(process.argv.slice(2));
 
-    Object.keys(opts).forEach((key) => {
-        if (key == '_') {
-            return;
-        }
-        if (parserOpts.string.indexOf(key) == -1 &&
-                parserOpts.boolean.indexOf(key) == -1 &&
-                !parserOpts.alias[key]) {
-            console.error('unknown option: ' + key);
-            console.error(usage);
-            process.exit(1);
-        }
-    });
-
-    if (opts.help) {
-        console.log(usage);
-        process.exit(0);
-    } else if (!opts._.length) {
-        console.error(usage);
-        process.exit(1);
-    }
-
-    var script = opts._[0];
-    var args = opts._.slice(1);
-
-    if (args.length) {
-        var headers = {
-            'Cookie': opts.cookie,
-            'Referer': opts.referrer,
-            'User-Agent': opts.userAgent
-        }
-        Object.keys(headers).forEach((key) => {
-            if (headers[key] === undefined) {
-                delete(headers[key]);
-            }
-        });
-
+    if (opts.args.length) {
         var promise = Promise.resolve();
-        args.forEach((urlOrFilename) => {
+        opts.args.forEach((urlOrFilename) => {
             promise = promise.then(() => {
                 if (isURL(urlOrFilename)) {
-                    return download(urlOrFilename, headers).then((args) => {
+                    return download(urlOrFilename, opts.headers).then((args) => {
                         var myOpts = {
                             url: args.response.request.uri.href
                         };
@@ -195,7 +202,7 @@
                 if (opts.encoding) {
                     args.html = iconv.decode(args.html, opts.encoding);
                 }
-                return sq(script, args.html, args.opts);
+                return sq(opts.script, args.html, args.opts);
             });
         });
     } else {
@@ -203,7 +210,7 @@
             if (opts.encoding) {
                 html = iconv.decode(html, opts.encoding);
             }
-            sq(script, html, opts);
+            sq(opts.script, html, opts);
         });
     }
 }());
