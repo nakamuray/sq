@@ -10,8 +10,6 @@
     function sq(script, urlOrFilenameOrHtml, options) {
         options = options || {};
 
-        var util = require('util');
-
         var coffeeScript = require('coffee-script');
         var jsdom = require('jsdom');
 
@@ -38,7 +36,7 @@
                     //var result = eval(script);
                     var result = coffeeScript.eval(script);
 
-                    if (!(util.isArray(result) || result instanceof jquery)) {
+                    if (!(Array.isArray(result) || result instanceof jquery)) {
                         result = [result];
                     }
 
