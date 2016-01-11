@@ -41,6 +41,7 @@
                     if (error) {
                         console.error(error);
                         reject(error);
+                        return;
                     }
 
                     var jquery = require('jquery')(window);
