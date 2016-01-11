@@ -2,86 +2,134 @@
 (function () {
     'use strict';
 
+    var fs = require('fs');
+    var path = require('path');
+    var url = require('url');
+
+    var iconv = require('iconv-lite');
+
+    const userAgent = "Node.js (" + process.platform + "; U; rv:" + process.version + ")";
+
     const usage = `Usage: sq [option]... <coffee expression> [URL or file]...
         Options:
             -h, --help              display this message
             -n, --quiet             surpress automatic result printing
-            -b, --cookie=key=value  mannualy set cookie value
+            -b, --cookie=COOKIE     use Cookie
+            -e, --encoding=ENCODING use ENCODING (default: utf-8)
             -r, --referrer=URL      set referrer to URL
+            -u, --url=URL           set/override document URL
             -A, --user-agent=AGENT  set User-Agent to AGENT`
 
-    function sq(script, urlOrFilenameOrHtml, options) {
+    function download(url, headers) {
+        var request = require('request');
+
+        headers = Object.assign({
+            'User-Agent': userAgent
+        }, headers);
+        var options = {
+            headers: headers
+        };
+        var promise = new Promise((resolve, reject) => {
+            request(url, options, (error, response, data) => {
+                if (error) {
+                    return reject({error: error, response: response, data: data});
+                } else {
+                    return resolve({response: response, data: data});
+                }
+            });
+        });
+
+        return promise;
+    }
+
+    function streamToPromise(stream) {
+        var promise = new Promise((resolve, reject) => {
+            var chunks = [];
+            stream.on('data', (chunk) => {
+                chunks.push(chunk);
+            });
+            stream.on('end', () => {
+                resolve(Buffer.concat(chunks));
+            });
+            stream.on('error', (error) => {
+                reject(error);
+            });
+        });
+
+        return promise;
+    }
+
+    function isURL(mayURL) {
+        var u = url.parse(mayURL);
+        return Boolean(u.protocol && u.hostname);
+    }
+
+    function toFileUrl(fileName) {
+        // just copied from jsdom/utils.js
+
+        // Beyond just the `path.resolve`, this is mostly for the benefit of Windows,
+        // where we need to convert "\" to "/" and add an extra "/" prefix before the
+        // drive letter.
+        let pathname = path.resolve(process.cwd(), fileName).replace(/\\/g, "/");
+        if (pathname[0] !== "/") {
+          pathname = "/" + pathname;
+        }
+
+        // path might contain spaces, so convert those to %20
+        return "file://" + encodeURI(pathname);
+    }
+
+    function sq(script, html, options) {
         var config = {
             features: {
                 FetchExternalResources: false,
                 ProcessExternalResources: false
             }
         };
-        Object.assign(config, {
-            referrer: options.referrer,
-            cookie: options.cookie,
-            userAgent: options.userAgent
-        });
-
-        if (config.referrer) {
-            config.headers = {
-                Referer: config.referrer
-            };
-        }
+        Object.assign(config, options);
 
         var coffeeScript = require('coffee-script');
         var jsdom = require('jsdom');
 
-        var promise = new Promise(function(resolve, reject) {
-            jsdom.env(
-                urlOrFilenameOrHtml,
-                [],
-                config,
-                function(error, window) {
-                    if (error) {
-                        console.error(error);
-                        reject(error);
-                        return;
-                    }
+        var document = jsdom.jsdom(html, config);
+        var window = document.defaultView;
 
-                    var jquery = require('jquery')(window);
+        var jquery = require('jquery')(window);
 
-                    global.$ = jquery;
-                    global.document = window.document;
-                    global.window = window;
+        global.$ = jquery;
+        global.document = window.document;
+        global.window = window;
 
-                    //var result = eval(script);
-                    var result = coffeeScript.eval(script);
+        //var result = eval(script);
+        var result = coffeeScript.eval(script);
 
-                    if (!(Array.isArray(result) || result instanceof jquery)) {
-                        result = [result];
-                    }
+        if (!(Array.isArray(result) || result instanceof jquery)) {
+            result = [result];
+        }
 
-                    if (!options.quiet) {
-                        Array.prototype.forEach.call(result, function(elem) {
-                            if (elem instanceof window.HTMLElement) {
-                                elem = elem.outerHTML;
-                            }
-                            console.log(elem);
-                        });
-                    }
-                    resolve();
+        if (!options.quiet) {
+            Array.prototype.forEach.call(result, function(elem) {
+                if (elem instanceof window.HTMLElement) {
+                    elem = elem.outerHTML;
                 }
-            );
-        });
+                console.log(elem);
+            });
+        }
 
-        return promise;
+        return Promise.resolve();
     }
 
     var parserArgs = require('minimist');
     var parserOpts = {
-        string: ['cookie', 'referrer', 'user-agent'],
+        string: ['cookie', 'encoding', 'referrer', 'url', 'userAgent'],
         boolean: ['help', 'quiet'],
         alias: {
             b: 'cookie',
-            r: 'referrer',
+            e: 'encoding',
             h: 'help',
             n: 'quiet',
+            r: 'referrer',
+            u: 'url',
             A: 'userAgent',
             'user-agent': 'userAgent'
         }
@@ -113,21 +161,48 @@
     var args = opts._.slice(1);
 
     if (args.length) {
+        var headers = {
+            'Cookie': opts.cookie,
+            'Referer': opts.referrer,
+            'User-Agent': opts.userAgent
+        }
+        Object.keys(headers).forEach((key) => {
+            if (headers[key] === undefined) {
+                delete(headers[key]);
+            }
+        });
+
         var promise = Promise.resolve();
         args.forEach((urlOrFilename) => {
             promise = promise.then(() => {
-                return sq(script, urlOrFilename, opts);
+                if (isURL(urlOrFilename)) {
+                    return download(urlOrFilename, headers).then((args) => {
+                        var myOpts = {
+                            url: args.response.request.uri.href
+                        };
+                        return {html: args.data, opts: myOpts};
+                    });
+                } else {
+                    return streamToPromise(fs.createReadStream(urlOrFilename)).then((data) => {
+                        var myOpts = {
+                            url: toFileUrl(urlOrFilename)
+                        };
+                        return {html: data, opts: myOpts};
+                    });
+                }
+            }).then((args) => {
+                Object.assign(args.opts, opts);
+                if (opts.encoding) {
+                    args.html = iconv.decode(args.html, opts.encoding);
+                }
+                return sq(script, args.html, args.opts);
             });
         });
     } else {
-        var html = '';
-        process.stdin.on('readable', function() {
-            var chunk = process.stdin.read();
-            if (chunk !== null) {
-                html += chunk;
+        streamToPromise(process.stdin).then((html) => {
+            if (opts.encoding) {
+                html = iconv.decode(html, opts.encoding);
             }
-        });
-        process.stdin.on('end', function() {
             sq(script, html, opts);
         });
     }
