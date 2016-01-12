@@ -16,6 +16,7 @@
             -n, --quiet             surpress automatic result printing
             -b, --cookie=COOKIE     use Cookie
             -e, --encoding=ENCODING use ENCODING (default: utf-8)
+            -j, --javascript        evaluate expression as a javascript instead of coffee script
             -r, --referrer=URL      set referrer to URL
             -u, --url=URL           set/override document URL
             -A, --user-agent=AGENT  set User-Agent to AGENT`
@@ -24,10 +25,11 @@
         var parserArgs = require('minimist');
         var parserOpts = {
             string: ['cookie', 'encoding', 'referrer', 'url', 'userAgent'],
-            boolean: ['help', 'quiet'],
+            boolean: ['javascript', 'help', 'quiet'],
             alias: {
                 b: 'cookie',
                 e: 'encoding',
+                j: 'javascript',
                 h: 'help',
                 n: 'quiet',
                 r: 'referrer',
@@ -89,7 +91,9 @@
         var promise = new Promise((resolve, reject) => {
             request(url, options, (error, response, data) => {
                 if (error) {
-                    return reject({error: error, response: response, data: data});
+                    return reject(error);
+                } else if (response.statusCode >= 400) {
+                    return reject(new Error(response.statusCode + ' ' + response.statusMessage));
                 } else {
                     return resolve({response: response, data: data});
                 }
@@ -145,7 +149,6 @@
         };
         Object.assign(config, options);
 
-        var coffeeScript = require('coffee-script');
         var jsdom = require('jsdom');
 
         var document = jsdom.jsdom(html, config);
@@ -157,8 +160,12 @@
         global.document = window.document;
         global.window = window;
 
-        //var result = eval(script);
-        var result = coffeeScript.eval(script);
+        if (options.javascript) {
+            var result = eval(script);
+        } else {
+            var coffeeScript = require('coffee-script');
+            var result = coffeeScript.eval(script);
+        }
 
         if (!(Array.isArray(result) || result instanceof jquery)) {
             result = [result];
@@ -203,6 +210,8 @@
                     args.html = iconv.decode(args.html, opts.encoding);
                 }
                 return sq(opts.script, args.html, args.opts);
+            }).catch((e) => {
+                console.error(e.toString() + ' (' + urlOrFilename + ')');
             });
         });
     } else {
@@ -210,7 +219,9 @@
             if (opts.encoding) {
                 html = iconv.decode(html, opts.encoding);
             }
-            sq(opts.script, html, opts);
+            return sq(opts.script, html, opts);
+        }).catch((e) => {
+            console.error(e.toString());
         });
     }
 }());
